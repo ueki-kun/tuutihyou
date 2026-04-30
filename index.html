@@ -3,120 +3,580 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>目標達成！成績シミュレーター</title>
+    <title>成績目標管理システム</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Chosen Palette: Warm Neutrals (stone-50 background) with Professional Blue (blue-800) accents -->
+    <!-- Application Structure Plan: Hub-and-Spoke Dashboard. The main dashboard provides a holistic view of all tracked subjects with a comparative bar chart showing current progress. Users can drill down into individual subjects (spokes) to perform specific "what-if" calculations for their final exams. This prevents information overload, visually separates concerns, and aligns with the user's mental model of managing multiple independent subjects. -->
+    <!-- Visualization & Content Choices: 
+         1. Dashboard Chart -> Compare midterm vs target across subjects -> Bar Chart (Chart.js) -> Quick visual assessment of which subject needs the most focus. 
+         2. Detail Chart -> Show progress towards target -> Doughnut Chart (Chart.js) -> Visually represents the "distance" left to achieve the goal. 
+         3. Subject Grid -> Organize added subjects -> Flex/Grid HTML -> Easy access and clear visual distinction.
+         No SVGs or Mermaid used. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+
     <style>
-        :root {
-            --primary-color: #4a90e2;
-            --secondary-color: #ffcc00;
-            --bg-color: #f0f4f8;
-            --text-color: #333;
-        }
+        /* Custom Tailwind config for strict palette */
+        @tailwind base;
+        @tailwind components;
+        @tailwind utilities;
+
         body {
-            font-family: 'Helvetica Neue', Arial, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            margin: 0;
+            background-color: #fafaf9; /* stone-50 */
+            color: #1c1917; /* stone-900 */
+            font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+        }
+
+        /* STRICT CHART CONTAINER STYLING */
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 400px;
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 100vh;
         }
-        .container {
-            background: white;
-            padding: 2rem;
-            border-radius: 20px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-            width: 90%;
-            max-width: 400px;
-            text-align: center;
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
         }
-        h1 { color: var(--primary-color); font-size: 1.5rem; }
-        .input-group { margin: 1.5rem 0; text-align: left; }
-        label { display: block; margin-bottom: 0.5rem; font-weight: bold; }
-        input {
-            width: 100%;
-            padding: 10px;
-            border: 2px solid #ddd;
-            border-radius: 10px;
-            box-sizing: border-box;
-            font-size: 1rem;
+
+        /* Custom Scrollbar for Modal */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
         }
-        button {
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 50px;
-            font-size: 1.1rem;
-            cursor: pointer;
-            width: 100%;
-            transition: transform 0.2s;
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f5f5f4; 
+            border-radius: 4px;
         }
-        button:hover { transform: scale(1.02); }
-        #result {
-            margin-top: 20px;
-            padding: 15px;
-            border-radius: 10px;
-            display: none;
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #d6d3d1; 
+            border-radius: 4px;
         }
-        .success { background: #e7f3ff; border: 1px solid var(--primary-color); }
-        .highlight { color: #e91e63; font-weight: bold; font-size: 1.2rem; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #a8a29e; 
+        }
+
+        /* Modal overlay animation */
+        #modal-overlay {
+            transition: opacity 0.2s ease-in-out;
+        }
+        .modal-hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .modal-visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
     </style>
 </head>
-<body>
+<body class="min-h-screen">
 
-<div class="container">
-    <h1>🎯 成績UPシミュレーター</h1>
-    <p>次のテストで「4」を目指そう！</p>
-    
-    <div class="input-group">
-        <label for="midterm">中間テストの点数 (0-100)</label>
-        <input type="number" id="midterm" placeholder="例: 75">
+    <!-- Top Navigation bar -->
+    <nav class="bg-blue-900 text-white shadow-md">
+        <div class="max-w-5xl mx-auto px-4 py-4 flex justify-between items-center">
+            <div class="text-xl font-bold tracking-wider">成績目標管理システム</div>
+        </div>
+    </nav>
+
+    <!-- Main Application Container -->
+    <main class="max-w-5xl mx-auto px-4 py-8">
+
+        <!-- ========================================== -->
+        <!-- DASHBOARD VIEW (Hub)                       -->
+        <!-- ========================================== -->
+        <section id="dashboard-view" class="block">
+            <div class="bg-white rounded-lg shadow-sm border border-stone-200 p-6 mb-8">
+                <h2 class="text-2xl font-bold text-blue-900 border-b-2 border-blue-900 pb-2 mb-4">学習状況ダッシュボード</h2>
+                <p class="text-stone-600 mb-6 leading-relaxed">
+                    このダッシュボードでは、あなたが追跡している全教科の学習目標と現在の進捗を一目で確認できます。下の「教科を追加」ボタンから管理したい科目を登録し、それぞれの科目名をクリックして次のテストの目標点数をシミュレーションしましょう。複数の科目を一覧化することで、どの科目に重点的に学習時間を割り当てるべきかを客観的に判断できます。
+                </p>
+
+                <!-- Dashboard Chart (Appears only when subjects are added and calculated) -->
+                <div id="dashboard-chart-wrapper" class="hidden mb-8 bg-stone-50 p-4 rounded-lg border border-stone-200">
+                    <h3 class="text-center font-bold text-stone-700 mb-2">全教科 目標達成状況 (中間テストベース)</h3>
+                    <div class="chart-container">
+                        <canvas id="dashboardCanvas"></canvas>
+                    </div>
+                </div>
+
+                <!-- Action Bar -->
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-bold text-stone-800">登録済み教科</h3>
+                    <button onclick="openModal()" class="bg-blue-700 hover:bg-blue-800 text-white px-4 py-2 rounded shadow transition-colors duration-200 flex items-center font-bold">
+                        <span class="mr-2 text-xl font-normal leading-none">&#10010;</span> 教科を追加
+                    </button>
+                </div>
+
+                <!-- Subject Grid -->
+                <div id="subject-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    <!-- Cards injected via JS -->
+                </div>
+                
+                <!-- Empty State -->
+                <div id="empty-state" class="text-center py-12 bg-stone-50 border-2 border-dashed border-stone-300 rounded-lg">
+                    <div class="text-4xl mb-3 text-stone-400">&#9881;</div>
+                    <p class="text-stone-500 font-medium">登録されている教科がありません。</p>
+                    <p class="text-stone-400 text-sm mt-1">右上のボタンから教科を追加してください。</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- DETAIL VIEW (Spoke - Report Card)          -->
+        <!-- ========================================== -->
+        <section id="detail-view" class="hidden">
+            <button onclick="showDashboard()" class="mb-6 text-blue-700 hover:text-blue-900 font-bold flex items-center transition-colors">
+                <span class="mr-1 text-xl leading-none">&#8592;</span> ダッシュボードへ戻る
+            </button>
+
+            <div class="bg-white rounded-lg shadow-md border-2 border-stone-800 p-0 overflow-hidden max-w-3xl mx-auto">
+                
+                <!-- Report Card Header -->
+                <div class="bg-stone-800 text-white p-4 md:p-6 flex justify-between items-end">
+                    <div>
+                        <div class="text-stone-300 text-sm mb-1">成績シミュレーション詳細</div>
+                        <h2 id="detail-subject-title" class="text-2xl md:text-3xl font-bold tracking-wide">教科名</h2>
+                    </div>
+                    <div class="text-right border-l-2 border-stone-600 pl-4">
+                        <div class="text-sm text-stone-300">対象期間</div>
+                        <div class="font-bold">2024年度 学期末</div>
+                    </div>
+                </div>
+
+                <div class="p-6 md:p-8">
+                    <p class="text-stone-600 mb-8 leading-relaxed">
+                        この画面では、選択した教科の中間テストの結果と、最終的に目指す通知表の評定（1〜5）を入力します。「計算する」ボタンを押すと、システムが自動的に目標達成に必要な次のテストの点数を算出し、視覚的なグラフと具体的なアドバイスを提示します。現実的な目標設定に役立ててください。
+                    </p>
+
+                    <!-- Input Grid -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 bg-stone-50 p-6 rounded border border-stone-200">
+                        <div>
+                            <label class="block text-stone-700 font-bold mb-2">中間テストの点数 (0-100)</label>
+                            <input type="number" id="mid-score" placeholder="例: 65" min="0" max="100" class="w-full p-3 border border-stone-300 rounded focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-lg">
+                        </div>
+                        <div>
+                            <label class="block text-stone-700 font-bold mb-2">目標の評定 (1-5)</label>
+                            <select id="target-rating" class="w-full p-3 border border-stone-300 rounded focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-lg bg-white">
+                                <option value="5">評定 5 (大変優秀)</option>
+                                <option value="4" selected>評定 4 (優秀)</option>
+                                <option value="3">評定 3 (標準)</option>
+                                <option value="2">評定 2 (努力が必要)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button onclick="calculateTarget()" class="w-full bg-blue-800 hover:bg-blue-900 text-white font-bold py-4 rounded shadow-md transition-colors text-lg mb-8">
+                        目標点数を計算する
+                    </button>
+
+                    <!-- Result Area (Hidden initially) -->
+                    <div id="result-area" class="hidden">
+                        <div class="border-t-2 border-dashed border-stone-300 pt-8 mt-2">
+                            <h3 class="text-xl font-bold text-center text-stone-800 mb-6">分析結果・学習アドバイス</h3>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                                <!-- Text Analysis -->
+                                <div id="result-message-box" class="p-5 rounded-lg border-l-4">
+                                    <p id="result-text" class="text-stone-800 leading-loose text-lg"></p>
+                                </div>
+                                
+                                <!-- Visual Chart -->
+                                <div class="bg-white p-4">
+                                    <div class="text-center text-sm font-bold text-stone-500 mb-2">必要点数構成グラフ</div>
+                                    <div class="chart-container">
+                                        <canvas id="detailCanvas"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ========================================== -->
+    <!-- MODAL OVERLAY (Add Subject)                -->
+    <!-- ========================================== -->
+    <div id="modal-overlay" class="fixed inset-0 bg-stone-900 bg-opacity-60 flex justify-center items-center z-50 modal-hidden" onclick="closeModal(event)">
+        <div class="bg-white w-11/12 max-w-lg rounded-lg shadow-xl overflow-hidden" onclick="event.stopPropagation()">
+            <div class="bg-blue-900 text-white px-6 py-4 flex justify-between items-center">
+                <h3 class="font-bold text-lg">教科の追加</h3>
+                <button onclick="forceCloseModal()" class="text-white hover:text-stone-300 text-2xl leading-none">&times;</button>
+            </div>
+            
+            <div class="p-6">
+                <p class="text-sm text-stone-600 mb-4">管理したい教科をクリックして追加してください。</p>
+                <div id="modal-subject-list" class="grid grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto custom-scrollbar p-1">
+                    <!-- Buttons injected via JS -->
+                </div>
+            </div>
+            
+            <div class="bg-stone-100 px-6 py-4 text-right">
+                <button onclick="forceCloseModal()" class="bg-stone-300 hover:bg-stone-400 text-stone-800 font-bold py-2 px-6 rounded transition-colors">
+                    閉じる
+                </button>
+            </div>
+        </div>
     </div>
 
-    <button onclick="calculate()">目標を計算する！</button>
+    <!-- ========================================== -->
+    <!-- JAVASCRIPT LOGIC                           -->
+    <!-- ========================================== -->
+    <script>
+        // Data Configuration
+        const AVAILABLE_SUBJECTS = [
+            "英語コミュニケーション", "論理表現", "地理", "日本史", "世界史", 
+            "公共", "数学", "論理国語", "古文探求", "物理", "地学", "生物", "化学"
+        ];
 
-    <div id="result">
-        <p id="message"></p>
-    </div>
-</div>
+        // State Management
+        let userSubjects = {}; 
+        let currentSubject = null;
+        let dashboardChartInstance = null;
+        let detailChartInstance = null;
 
-<script>
-    function calculate() {
-        const midterm = parseFloat(document.getElementById('midterm').value);
-        const resultDiv = document.getElementById('result');
-        const messageP = document.getElementById('message');
+        // Base score requirements logic
+        const RATING_REQUIREMENTS = {
+            5: 180, // Average 90
+            4: 160, // Average 80
+            3: 120, // Average 60
+            2: 80   // Average 40
+        };
 
-        if (isNaN(midterm) || midterm < 0 || midterm > 100) {
-            alert("正しい点数を入力してね！");
-            return;
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            initModalList();
+            renderDashboard();
+        });
+
+        function initModalList() {
+            const listContainer = document.getElementById('modal-subject-list');
+            listContainer.innerHTML = '';
+            
+            AVAILABLE_SUBJECTS.forEach(subject => {
+                const btn = document.createElement('button');
+                btn.className = "text-left px-4 py-3 bg-white border border-stone-300 rounded hover:bg-blue-50 hover:border-blue-400 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-stone-700";
+                btn.innerText = subject;
+                btn.onclick = () => addSubject(subject);
+                listContainer.appendChild(btn);
+            });
         }
 
-        // 評定「4」の目安を平均80点と仮定 (中間+期末)/2 = 80
-        // つまり 合計160点必要
-        const targetTotal = 160;
-        const required = targetTotal - midterm;
-
-        resultDiv.style.display = "block";
-        resultDiv.className = "success";
-
-        if (required <= 100) {
-            const finalScore = required > 0 ? required : 0;
-            messageP.innerHTML = `
-                中間テストは <span class="highlight">${midterm}点</span> だったね！<br><br>
-                期末テストで <span class="highlight">${finalScore}点</span> 以上取れば、<br>
-                成績 <span class="highlight">「4」</span> がぐっと近づくよ！<br><br>
-                君なら絶対にできる。応援してるよ！
-            `;
-        } else {
-            messageP.innerHTML = `
-                目標まであと少し！期末で高得点を狙いつつ、<br>
-                提出物や授業態度でプラスアルファを狙おう！<br>
-                一歩ずつの積み重ねが大事だよ。
-            `;
+        // --- Navigation & Modal Handling ---
+        function openModal() {
+            const modal = document.getElementById('modal-overlay');
+            modal.classList.remove('modal-hidden');
+            modal.classList.add('modal-visible');
+            updateModalButtonsState();
         }
-    }
-</script>
 
+        function closeModal(e) {
+            if(e.target.id === 'modal-overlay') {
+                forceCloseModal();
+            }
+        }
+
+        function forceCloseModal() {
+            const modal = document.getElementById('modal-overlay');
+            modal.classList.remove('modal-visible');
+            modal.classList.add('modal-hidden');
+        }
+
+        function showDashboard() {
+            document.getElementById('detail-view').classList.add('hidden');
+            document.getElementById('dashboard-view').classList.remove('hidden');
+            currentSubject = null;
+            renderDashboard();
+        }
+
+        function showDetail(subjectName) {
+            currentSubject = subjectName;
+            document.getElementById('dashboard-view').classList.add('hidden');
+            document.getElementById('detail-view').classList.remove('hidden');
+            
+            // Set Headers
+            document.getElementById('detail-subject-title').innerText = subjectName;
+            
+            // Reset or Load Form
+            const midInput = document.getElementById('mid-score');
+            const targetSelect = document.getElementById('target-rating');
+            const resultArea = document.getElementById('result-area');
+            
+            if (userSubjects[subjectName]) {
+                midInput.value = userSubjects[subjectName].midterm;
+                targetSelect.value = userSubjects[subjectName].target;
+                calculateTarget(false); 
+            } else {
+                midInput.value = '';
+                targetSelect.value = '4';
+                resultArea.classList.add('hidden');
+            }
+        }
+
+        // --- Data Manipulation ---
+        function addSubject(subjectName) {
+            if (!userSubjects.hasOwnProperty(subjectName)) {
+                userSubjects[subjectName] = null; 
+                renderDashboard();
+            }
+            forceCloseModal();
+            showDetail(subjectName);
+        }
+
+        function updateModalButtonsState() {
+            const buttons = document.getElementById('modal-subject-list').getElementsByTagName('button');
+            for (let btn of buttons) {
+                if (userSubjects.hasOwnProperty(btn.innerText)) {
+                    btn.classList.add('opacity-50', 'cursor-not-allowed', 'bg-stone-100');
+                    btn.disabled = true;
+                } else {
+                    btn.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-stone-100');
+                    btn.disabled = false;
+                }
+            }
+        }
+
+        // --- Core Logic & Rendering ---
+        function calculateTarget(showAlerts = true) {
+            const midRaw = document.getElementById('mid-score').value;
+            const targetVal = document.getElementById('target-rating').value;
+            
+            if (!midRaw && showAlerts) {
+                alert("中間テストの点数を入力してください。");
+                return;
+            } else if (!midRaw) {
+                return;
+            }
+
+            const midterm = parseInt(midRaw, 10);
+            const target = parseInt(targetVal, 10);
+
+            if ((midterm < 0 || midterm > 100) && showAlerts) {
+                alert("0から100の間の数値を入力してください。");
+                return;
+            }
+
+            const targetTotal = RATING_REQUIREMENTS[target];
+            const finalNeeded = targetTotal - midterm;
+
+            // Save state
+            userSubjects[currentSubject] = {
+                midterm: midterm,
+                target: target,
+                finalNeeded: finalNeeded,
+                targetTotal: targetTotal
+            };
+
+            displayResultText(midterm, target, finalNeeded);
+            renderDetailChart(midterm, finalNeeded, targetTotal);
+        }
+
+        function displayResultText(midterm, target, finalNeeded) {
+            const resultArea = document.getElementById('result-area');
+            const resultText = document.getElementById('result-text');
+            const box = document.getElementById('result-message-box');
+            
+            resultArea.classList.remove('hidden');
+            box.className = "p-5 rounded border-l-4"; 
+
+            if (finalNeeded > 100) {
+                box.classList.add('bg-orange-50', 'border-orange-500');
+                resultText.innerHTML = `
+                    <span class="font-bold text-orange-700">厳しい道のりですが、諦めないでください。</span><br>
+                    現在の点数（${midterm}点）から目標の評定${target}を達成するためには、次のテストで <span class="text-2xl font-bold text-orange-600">${finalNeeded}点</span> が必要という計算になります。<br>
+                    テストの点数だけでカバーするのは難しいため、提出物や小テスト、授業態度でのアピールを今すぐ始めましょう。
+                `;
+            } else if (finalNeeded <= 0) {
+                box.classList.add('bg-emerald-50', 'border-emerald-500');
+                resultText.innerHTML = `
+                    <span class="font-bold text-emerald-700">素晴らしい成績です！</span><br>
+                    中間テストでの貯金（${midterm}点）が大きいため、次のテストでは現在のペースを維持すれば評定${target}はほぼ確実です。<br>
+                    油断せずに基礎の復習を続け、さらに上の評定を目指すことも検討してみてください。
+                `;
+            } else {
+                box.classList.add('bg-blue-50', 'border-blue-500');
+                resultText.innerHTML = `
+                    目標の評定${target}を獲得するためには、次のテストで<br>
+                    <span class="text-3xl font-bold text-blue-700 mx-2">${finalNeeded}点</span><br>以上を取ることが具体的な目標となります。<br>
+                    中間テスト（${midterm}点）からの伸びしろは十分にあります。計画的に学習を進めましょう！
+                `;
+            }
+        }
+
+        function renderDashboard() {
+            const grid = document.getElementById('subject-grid');
+            const emptyState = document.getElementById('empty-state');
+            const chartWrapper = document.getElementById('dashboard-chart-wrapper');
+            
+            grid.innerHTML = '';
+            const subjectKeys = Object.keys(userSubjects);
+
+            if (subjectKeys.length === 0) {
+                emptyState.classList.remove('hidden');
+                chartWrapper.classList.add('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            
+            subjectKeys.forEach(sub => {
+                const data = userSubjects[sub];
+                const card = document.createElement('div');
+                card.className = "bg-white border-2 border-stone-200 rounded p-4 cursor-pointer hover:border-blue-500 hover:shadow-md transition-all group flex flex-col justify-between h-full";
+                card.onclick = () => showDetail(sub);
+                
+                let statusHtml = '<span class="text-sm text-stone-400">未計算</span>';
+                if (data) {
+                    const statusColor = data.finalNeeded > 100 ? 'text-orange-600' : (data.finalNeeded <= 0 ? 'text-emerald-600' : 'text-blue-600');
+                    const targetText = `評定${data.target}目標`;
+                    statusHtml = `<div class="text-sm font-bold text-stone-500">${targetText}</div>
+                                  <div class="text-lg font-bold ${statusColor} mt-1">目標点: ${data.finalNeeded > 0 ? data.finalNeeded + '点' : '達成ペース'}</div>`;
+                }
+
+                card.innerHTML = `
+                    <div>
+                        <div class="font-bold text-stone-800 text-lg mb-2 group-hover:text-blue-700 transition-colors">${sub}</div>
+                        ${statusHtml}
+                    </div>
+                    <div class="mt-4 text-right text-stone-300 group-hover:text-blue-500 transition-colors">
+                        &#10140; 詳細
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+
+            const calculatedSubjects = subjectKeys.filter(k => userSubjects[k] !== null);
+            if (calculatedSubjects.length > 0) {
+                chartWrapper.classList.remove('hidden');
+                renderDashboardChart(calculatedSubjects);
+            } else {
+                chartWrapper.classList.add('hidden');
+            }
+        }
+
+        // --- Chart.js Renderers ---
+        function renderDashboardChart(subjectsWithData) {
+            const ctx = document.getElementById('dashboardCanvas').getContext('2d');
+            
+            if (dashboardChartInstance) {
+                dashboardChartInstance.destroy();
+            }
+
+            const labels = subjectsWithData;
+            const midterms = subjectsWithData.map(s => userSubjects[s].midterm);
+            const needed = subjectsWithData.map(s => {
+                const req = userSubjects[s].finalNeeded;
+                return req > 0 ? req : 0; 
+            });
+
+            dashboardChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: '中間テスト獲得点',
+                            data: midterms,
+                            backgroundColor: '#0284c7', 
+                            borderRadius: 4,
+                        },
+                        {
+                            label: '必要点数',
+                            data: needed,
+                            backgroundColor: '#cbd5e1', 
+                            borderRadius: 4,
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { stacked: true },
+                        y: { 
+                            stacked: true,
+                            max: 200,
+                            title: { display: true, text: '合計点数' }
+                        }
+                    },
+                    plugins: {
+                        legend: { position: 'top' },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + context.parsed.y + '点';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderDetailChart(midterm, finalNeeded, targetTotal) {
+            const ctx = document.getElementById('detailCanvas').getContext('2d');
+            
+            if (detailChartInstance) {
+                detailChartInstance.destroy();
+            }
+
+            let dataVals, bgColors, labels;
+
+            if (finalNeeded <= 0) {
+                labels = ['中間テスト点数 (達成済)'];
+                dataVals = [midterm];
+                bgColors = ['#059669']; 
+            } else if (finalNeeded > 100) {
+                labels = ['獲得済 (中間)', '必要点 (可能な100点)', '不足点 (平常点等でカバー)'];
+                dataVals = [midterm, 100, finalNeeded - 100];
+                bgColors = ['#0284c7', '#94a3b8', '#ea580c']; 
+            } else {
+                labels = ['獲得済 (中間)', '必要点 (次)'];
+                dataVals = [midterm, finalNeeded];
+                bgColors = ['#0284c7', '#94a3b8']; 
+            }
+
+            detailChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: dataVals,
+                        backgroundColor: bgColors,
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '60%',
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.label + ': ' + context.parsed + '点';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    </script>
 </body>
 </html>
